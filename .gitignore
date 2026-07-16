@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+driftwatch.db
+.dw_port.txt
+.pytest_cache/

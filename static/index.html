@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DriftWatch — API contract drift sentinel</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛰️</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="brand-icon">🛰️</span>
+    <div>
+      <h1>DriftWatch</h1>
+      <p class="tagline">API contract drift sentinel</p>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+</header>
+
+<main>
+  <section class="panel" id="endpoints-panel">
+    <div class="panel-head">
+      <h2>Monitored endpoints</h2>
+      <button class="btn primary" id="btn-add-endpoint">+ Add endpoint</button>
+    </div>
+    <div id="endpoints-list" class="list"></div>
+  </section>
+
+  <section class="panel" id="events-panel">
+    <div class="panel-head">
+      <h2>Drift feed</h2>
+      <label class="check">
+        <input type="checkbox" id="show-acked"> show acknowledged
+      </label>
+    </div>
+    <div id="events-list" class="list"></div>
+  </section>
+
+  <section class="panel" id="channels-panel">
+    <div class="panel-head">
+      <h2>Alert channels</h2>
+      <button class="btn primary" id="btn-add-channel">+ Add channel</button>
+    </div>
+    <div id="channels-list" class="list"></div>
+  </section>
+</main>
+
+<footer>
+  <span>DriftWatch watches response <em>shapes</em>, not data — probes on schedule, alerts on structural drift.</span>
+  <a href="/docs" target="_blank" rel="noopener">API docs</a>
+</footer>
+
+<!-- Add/edit endpoint -->
+<dialog id="dlg-endpoint">
+  <form method="dialog" id="form-endpoint">
+    <h3 id="dlg-endpoint-title">Add endpoint</h3>
+    <label>Name <input name="name" required maxlength="200" placeholder="Orders API"></label>
+    <label>URL <input name="url" required placeholder="https://api.vendor.com/v1/orders"></label>
+    <div class="row">
+      <label>Method
+        <select name="method">
+          <option>GET</option><option>POST</option><option>PUT</option>
+          <option>PATCH</option><option>DELETE</option>
+        </select>
+      </label>
+      <label>Interval (seconds) <input name="interval_seconds" type="number" min="10" value="300"></label>
+    </div>
+    <label>Headers (JSON object, e.g. auth) <textarea name="headers" rows="2" placeholder='{"Authorization": "Bearer …"}'></textarea></label>
+    <label>Request body (optional) <textarea name="body" rows="2"></textarea></label>
+    <label class="check"><input type="checkbox" name="is_active" checked> active</label>
+    <p class="form-error" id="endpoint-error"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary" id="endpoint-submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Add channel -->
+<dialog id="dlg-channel">
+  <form method="dialog" id="form-channel">
+    <h3>Add alert channel</h3>
+    <label>Name <input name="name" required maxlength="200" placeholder="#api-alerts"></label>
+    <div class="row">
+      <label>Kind
+        <select name="kind">
+          <option value="discord">Discord</option>
+          <option value="slack">Slack</option>
+          <option value="webhook">Generic webhook</option>
+        </select>
+      </label>
+      <label>Alert on
+        <select name="min_severity">
+          <option value="benign">benign +</option>
+          <option value="risky" selected>risky +</option>
+          <option value="breaking">breaking only</option>
+        </select>
+      </label>
+    </div>
+    <label>Webhook URL <input name="webhook_url" required placeholder="https://discord.com/api/webhooks/…"></label>
+    <p class="form-error" id="channel-error"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
