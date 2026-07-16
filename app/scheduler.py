@@ -9,6 +9,7 @@ from .alerts import dispatch_event
 from .database import SessionLocal
 from .engine.prober import run_probe
 from .models import Endpoint
+from .retention import prune_old_data
 
 log = logging.getLogger("driftwatch.scheduler")
 
@@ -72,6 +73,14 @@ def sync_all_jobs() -> None:
 
 def start() -> None:
     sync_all_jobs()
+    scheduler.add_job(
+        prune_old_data,
+        "interval",
+        hours=24,
+        id="retention-prune",
+        replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=60),
+    )
     scheduler.start()
     log.info("scheduler started with %d job(s)", len(scheduler.get_jobs()))
 

@@ -2,6 +2,7 @@
 
 const $ = (sel) => document.querySelector(sel);
 const state = { endpoints: [], events: [], channels: [], stats: null, editingId: null };
+const shapeViews = new Map(); // eventId -> {baseline, observed}; presence = expanded
 
 /* ---------- API helper ---------- */
 
@@ -16,7 +17,7 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json", ...authHeaders(), ...(options.headers || {}) },
   });
   if (resp.status === 401) {
-    toast("API token required — run: localStorage.dw_token = 'your-token' in the console", true);
+    toast("API token required — set it via the ⚙️ button in the header", true);
     throw new Error("unauthorized");
   }
   if (!resp.ok) {
@@ -113,13 +114,27 @@ function renderEvents() {
               <span class="path">${esc(c.path)}</span>
               <span class="detail">${esc(c.detail)}</span></li>`).join("")}
       </ul>
-      ${ev.acknowledged ? "" : `
-        <div class="card-actions">
+      ${renderShapeView(ev)}
+      <div class="card-actions">
+        ${ev.snapshot_id != null
+          ? `<button class="btn small" data-act="shapes">${shapeViews.has(ev.id) ? "Hide shapes" : "View shapes"}</button>` : ""}
+        ${ev.acknowledged ? "" : `
           ${ev.snapshot_id != null
             ? `<button class="btn small primary" data-act="accept">Accept as new baseline</button>` : ""}
-          <button class="btn small" data-act="ack">Acknowledge</button>
-        </div>`}
+          <button class="btn small" data-act="ack">Acknowledge</button>`}
+      </div>
     </div>`).join("");
+}
+
+function renderShapeView(ev) {
+  const shapes = shapeViews.get(ev.id);
+  if (!shapes) return "";
+  const fmt = (s) => (s == null ? "(not recorded)" : JSON.stringify(s, null, 2));
+  return `
+    <div class="shapes-view">
+      <div><h4>Baseline shape</h4><pre>${esc(fmt(shapes.baseline))}</pre></div>
+      <div><h4>Observed shape</h4><pre>${esc(fmt(shapes.observed))}</pre></div>
+    </div>`;
 }
 
 function renderChannels() {
@@ -214,6 +229,14 @@ $("#events-list").addEventListener("click", async (e) => {
       toast("New baseline accepted");
     } else if (btn.dataset.act === "ack") {
       await api(`/api/events/${id}/ack`, { method: "POST" });
+    } else if (btn.dataset.act === "shapes") {
+      if (shapeViews.has(id)) {
+        shapeViews.delete(id);
+      } else {
+        shapeViews.set(id, await api(`/api/events/${id}/shapes`));
+      }
+      renderEvents();
+      return;
     }
     await loadAll();
   } catch (err) { toast(err.message, true); }
@@ -325,6 +348,41 @@ $("#form-channel").addEventListener("submit", async (e) => {
   } catch (err) {
     $("#channel-error").textContent = err.message;
   }
+});
+
+/* ---------- channel kind -> target field label ---------- */
+
+$("#channel-kind").addEventListener("change", (e) => {
+  const input = $("#form-channel").webhook_url;
+  const label = $("#channel-target-label");
+  if (e.target.value === "email") {
+    label.firstChild.textContent = "Recipient email ";
+    input.placeholder = "you@example.com";
+  } else {
+    label.firstChild.textContent = "Webhook URL ";
+    input.placeholder = "https://discord.com/api/webhooks/…";
+  }
+});
+
+/* ---------- API token dialog ---------- */
+
+$("#btn-settings").addEventListener("click", () => {
+  $("#form-token").token.value = localStorage.getItem("dw_token") || "";
+  $("#dlg-token").showModal();
+});
+
+$("#form-token").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const token = e.target.token.value.trim();
+  if (token) {
+    localStorage.setItem("dw_token", token);
+    toast("Token saved");
+  } else {
+    localStorage.removeItem("dw_token");
+    toast("Token cleared");
+  }
+  $("#dlg-token").close();
+  loadAll();
 });
 
 document.querySelectorAll("dialog [data-close]").forEach((btn) =>

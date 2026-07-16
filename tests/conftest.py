@@ -6,6 +6,9 @@ _tmp = tempfile.mkdtemp(prefix="driftwatch-tests-")
 os.environ["DRIFTWATCH_SCHEDULER_ENABLED"] = "0"
 os.environ["DRIFTWATCH_DB"] = "sqlite:///" + os.path.join(_tmp, "test.db").replace("\\", "/")
 os.environ["DRIFTWATCH_API_TOKEN"] = ""
+# Single-probe baselines by default; learning-phase tests override in-test.
+os.environ["DRIFTWATCH_BASELINE_PROBES"] = "1"
+os.environ["DRIFTWATCH_PROBE_BACKOFF"] = "0"
 
 import pytest
 from fastapi.testclient import TestClient

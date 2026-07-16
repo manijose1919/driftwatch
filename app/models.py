@@ -12,10 +12,11 @@ def utcnow() -> datetime:
 
 
 # Endpoint.last_status values
-STATUS_PENDING = "pending"   # never probed yet
-STATUS_OK = "ok"             # matches baseline
-STATUS_DRIFT = "drift"       # shape differs from baseline
-STATUS_ERROR = "error"       # unreachable / non-2xx / non-JSON
+STATUS_PENDING = "pending"    # never probed yet
+STATUS_LEARNING = "learning"  # merging first N probes into the baseline
+STATUS_OK = "ok"              # matches baseline
+STATUS_DRIFT = "drift"        # shape differs from baseline
+STATUS_ERROR = "error"        # unreachable / non-2xx / non-JSON
 
 # DriftEvent.severity values, ordered weakest -> strongest
 SEVERITY_ORDER = ["benign", "risky", "breaking", "error"]
@@ -59,6 +60,9 @@ class Snapshot(Base):
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_baseline: Mapped[bool] = mapped_column(Boolean, default=False)
+    # How many probes were merged into this shape (baselines learn from the
+    # first N probes so intermittent/optional fields are captured).
+    samples: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     endpoint: Mapped[Endpoint] = relationship(back_populates="snapshots")
@@ -70,6 +74,10 @@ class DriftEvent(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     endpoint_id: Mapped[int] = mapped_column(ForeignKey("endpoints.id"))
     snapshot_id: Mapped[int | None] = mapped_column(ForeignKey("snapshots.id"), nullable=True)
+    # The baseline this event was diffed against (for the shape viewer).
+    baseline_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("snapshots.id"), nullable=True
+    )
     severity: Mapped[str] = mapped_column(String(20))  # benign | risky | breaking | error
     # list of {"path": str, "kind": str, "severity": str, "detail": str}
     changes: Mapped[list] = mapped_column(JSON, default=list)
@@ -77,7 +85,7 @@ class DriftEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     endpoint: Mapped[Endpoint] = relationship(back_populates="events")
-    snapshot: Mapped[Snapshot | None] = relationship()
+    snapshot: Mapped[Snapshot | None] = relationship(foreign_keys=[snapshot_id])
 
 
 class AlertChannel(Base):

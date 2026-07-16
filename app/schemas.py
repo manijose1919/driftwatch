@@ -1,13 +1,13 @@
 """Pydantic request/response schemas for the REST API."""
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .config import settings
 
 VALID_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}
 VALID_SEVERITIES = {"benign", "risky", "breaking", "error"}
-VALID_CHANNEL_KINDS = {"discord", "slack", "webhook"}
+VALID_CHANNEL_KINDS = {"discord", "slack", "webhook", "email"}
 
 
 class EndpointCreate(BaseModel):
@@ -95,6 +95,7 @@ class SnapshotOut(BaseModel):
     status_code: int | None
     response_ms: float | None
     is_baseline: bool
+    samples: int
     created_at: datetime
 
 
@@ -112,6 +113,7 @@ class DriftEventOut(BaseModel):
     endpoint_id: int
     endpoint_name: str = ""
     snapshot_id: int | None
+    baseline_snapshot_id: int | None = None
     severity: str
     changes: list[ChangeOut]
     acknowledged: bool
@@ -121,6 +123,8 @@ class DriftEventOut(BaseModel):
 class ChannelCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     kind: str
+    # For webhook kinds this is the webhook URL; for kind "email" it is the
+    # recipient email address.
     webhook_url: str = Field(min_length=1)
     min_severity: str = "risky"
     is_active: bool = True
@@ -139,12 +143,14 @@ class ChannelCreate(BaseModel):
             raise ValueError(f"min_severity must be one of {sorted(VALID_SEVERITIES)}")
         return v
 
-    @field_validator("webhook_url")
-    @classmethod
-    def webhook_must_be_http(cls, v: str) -> str:
-        if not v.startswith(("http://", "https://")):
+    @model_validator(mode="after")
+    def target_matches_kind(self) -> "ChannelCreate":
+        if self.kind == "email":
+            if "@" not in self.webhook_url or self.webhook_url.startswith(("http://", "https://")):
+                raise ValueError("for kind 'email', webhook_url must be a recipient email address")
+        elif not self.webhook_url.startswith(("http://", "https://")):
             raise ValueError("webhook_url must start with http:// or https://")
-        return v
+        return self
 
 
 class ChannelOut(BaseModel):

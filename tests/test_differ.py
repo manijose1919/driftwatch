@@ -44,10 +44,9 @@ def test_int_to_float_is_risky_widening():
     assert changes[0]["severity"] == "risky"
 
 
-def test_float_to_int_is_benign():
-    changes = diff_payloads({"qty": 2.5}, {"qty": 2})
-    assert changes[0]["kind"] == "type_narrowed"
-    assert changes[0]["severity"] == "benign"
+def test_float_baseline_accepts_int_observation():
+    # JSON integers are valid numbers: consistent with contract, not drift.
+    assert diff_payloads({"qty": 2.5}, {"qty": 2}) == []
 
 
 def test_became_nullable_is_risky():
@@ -104,6 +103,25 @@ def test_empty_array_learning_items_is_benign():
     changes = diff_payloads({"rows": []}, {"rows": [{"a": 1}]})
     assert changes[0]["kind"] == "array_items_learned"
     assert changes[0]["severity"] == "benign"
+
+
+def test_observations_consistent_with_baseline_are_silent():
+    """Sampling outcomes allowed by the baseline contract are not drift."""
+    # optional field absent this probe
+    old = infer_shape({"rows": [{"a": 1, "b": 2}, {"a": 1}]})
+    new = infer_shape({"rows": [{"a": 5}, {"a": 6}]})
+    assert diff_shapes(old, new) == []
+    # optional field present everywhere this probe
+    new_all_present = infer_shape({"rows": [{"a": 5, "b": 9}, {"a": 6, "b": 1}]})
+    assert diff_shapes(old, new_all_present) == []
+    # nullable baseline, no null observed this probe
+    assert diff_payloads({"tags": ["a", None]}, {"tags": ["a", "b"]}) == []
+    # array empty this probe
+    assert diff_payloads({"rows": [{"a": 1}]}, {"rows": []}) == []
+    # union-typed baseline, single variant observed
+    old_mixed = infer_shape({"v": [1, "x"]})
+    assert diff_shapes(old_mixed, infer_shape({"v": ["y", "z"]})) == []
+    assert diff_shapes(old_mixed, infer_shape({"v": [3, 4]})) == []
 
 
 def test_no_recursion_below_type_change():

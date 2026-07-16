@@ -210,6 +210,77 @@ def test_benign_drift_filtered_by_min_severity(client, fake_api, monkeypatch):
     assert sent == []  # below channel threshold
 
 
+def test_event_shapes_route(client, fake_api):
+    fake_api["payload"] = BASELINE_PAYLOAD
+    ep = make_endpoint(client)
+    client.post(f"/api/endpoints/{ep['id']}/probe")
+    fake_api["payload"] = BREAKING_PAYLOAD
+    client.post(f"/api/endpoints/{ep['id']}/probe")
+
+    event = client.get("/api/events").json()[0]
+    shapes = client.get(f"/api/events/{event['id']}/shapes").json()
+    assert shapes["baseline"] is not None and shapes["observed"] is not None
+    base_total = shapes["baseline"]["fields"]["orders"]["items"]["fields"]["total"]
+    obs_total = shapes["observed"]["fields"]["orders"]["items"]["fields"]["total"]
+    assert base_total["type"] == "number" and obs_total["type"] == "string"
+
+    assert client.get("/api/events/9999/shapes").status_code == 404
+
+
+def test_email_channel_validation(client):
+    bad = client.post("/api/channels", json={
+        "name": "mail", "kind": "email", "webhook_url": "https://not-an-email",
+    })
+    assert bad.status_code == 422
+    ok = client.post("/api/channels", json={
+        "name": "mail", "kind": "email", "webhook_url": "ops@example.com",
+        "min_severity": "breaking",
+    })
+    assert ok.status_code == 201
+
+
+def test_email_dispatch_uses_smtp(client, fake_api, monkeypatch):
+    from app import alerts
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
+    sent = []
+    monkeypatch.setattr(
+        alerts, "_send_email_sync",
+        lambda recipient, subject, text: sent.append((recipient, subject, text)),
+    )
+
+    client.post("/api/channels", json={
+        "name": "mail", "kind": "email", "webhook_url": "ops@example.com",
+        "min_severity": "risky",
+    })
+    fake_api["payload"] = BASELINE_PAYLOAD
+    ep = make_endpoint(client)
+    client.post(f"/api/endpoints/{ep['id']}/probe")
+    fake_api["payload"] = BREAKING_PAYLOAD
+    client.post(f"/api/endpoints/{ep['id']}/probe")
+
+    assert len(sent) == 1
+    recipient, subject, text = sent[0]
+    assert recipient == "ops@example.com"
+    assert "BREAKING" in subject and "orders api" in subject
+    assert "$.orders[].total" in text and "**" not in text
+
+
+def test_email_dispatch_without_smtp_config_fails_soft(client, fake_api):
+    client.post("/api/channels", json={
+        "name": "mail", "kind": "email", "webhook_url": "ops@example.com",
+        "min_severity": "risky",
+    })
+    fake_api["payload"] = BASELINE_PAYLOAD
+    ep = make_endpoint(client)
+    client.post(f"/api/endpoints/{ep['id']}/probe")
+    fake_api["payload"] = BREAKING_PAYLOAD
+    resp = client.post(f"/api/endpoints/{ep['id']}/probe")  # must not raise
+    assert resp.status_code == 200
+    assert client.get("/api/events").json()[0]["severity"] == "breaking"
+
+
 def test_api_token_auth(client, monkeypatch):
     from app.config import settings
     monkeypatch.setattr(settings, "api_token", "sekrit")

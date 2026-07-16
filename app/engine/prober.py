@@ -4,6 +4,7 @@
 scheduler, from API routes, and from tests alike. Network I/O is isolated in
 `_request` so tests can monkeypatch it with canned payloads.
 """
+import asyncio
 import json
 import logging
 import time
@@ -17,6 +18,7 @@ from ..database import SessionLocal
 from ..models import (
     STATUS_DRIFT,
     STATUS_ERROR,
+    STATUS_LEARNING,
     STATUS_OK,
     DriftEvent,
     Endpoint,
@@ -24,7 +26,7 @@ from ..models import (
     utcnow,
 )
 from .differ import diff_shapes, overall_severity
-from .shape import infer_shape
+from .shape import infer_shape, merge_shapes
 
 log = logging.getLogger("driftwatch.prober")
 
@@ -34,27 +36,42 @@ class ProbeError(Exception):
 
 
 async def _request(endpoint: Endpoint) -> tuple[object, int, float]:
-    """Fetch the endpoint. Returns (parsed_json, status_code, elapsed_ms)."""
-    started = time.perf_counter()
-    try:
-        async with httpx.AsyncClient(timeout=settings.probe_timeout_seconds) as client:
-            resp = await client.request(
-                endpoint.method,
-                endpoint.url,
-                headers=endpoint.headers or {},
-                content=endpoint.body,
-            )
-    except httpx.HTTPError as exc:
-        raise ProbeError(f"request failed: {exc.__class__.__name__}: {exc}") from exc
-    elapsed_ms = (time.perf_counter() - started) * 1000
+    """Fetch the endpoint. Returns (parsed_json, status_code, elapsed_ms).
 
-    if resp.status_code >= 300:
-        raise ProbeError(f"unexpected status {resp.status_code}")
-    try:
-        payload = resp.json()
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise ProbeError(f"response is not valid JSON: {exc}") from exc
-    return payload, resp.status_code, elapsed_ms
+    Network failures and 5xx responses are retried with linear backoff
+    (they're usually transient); 3xx/4xx and non-JSON bodies are not
+    (they're deterministic — retrying just delays the alert).
+    """
+    attempts = settings.probe_retries + 1
+    last_error = "no attempts made"
+    for attempt in range(attempts):
+        if attempt:
+            await asyncio.sleep(settings.probe_backoff_seconds * attempt)
+        started = time.perf_counter()
+        try:
+            async with httpx.AsyncClient(timeout=settings.probe_timeout_seconds) as client:
+                resp = await client.request(
+                    endpoint.method,
+                    endpoint.url,
+                    headers=endpoint.headers or {},
+                    content=endpoint.body,
+                )
+        except httpx.HTTPError as exc:
+            last_error = f"request failed: {exc.__class__.__name__}: {exc}"
+            continue
+        elapsed_ms = (time.perf_counter() - started) * 1000
+
+        if resp.status_code >= 500:
+            last_error = f"server error {resp.status_code}"
+            continue
+        if resp.status_code >= 300:
+            raise ProbeError(f"unexpected status {resp.status_code}")
+        try:
+            payload = resp.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ProbeError(f"response is not valid JSON: {exc}") from exc
+        return payload, resp.status_code, elapsed_ms
+    raise ProbeError(f"{last_error} (after {attempts} attempt(s))")
 
 
 async def run_probe(endpoint_id: int) -> DriftEvent | None:
@@ -108,11 +125,29 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
     if baseline is None:
         db.add(Snapshot(
             endpoint_id=endpoint.id, shape=shape, status_code=status_code,
-            response_ms=elapsed_ms, is_baseline=True,
+            response_ms=elapsed_ms, is_baseline=True, samples=1,
         ))
-        endpoint.last_status = STATUS_OK
+        endpoint.last_status = (
+            STATUS_LEARNING if settings.baseline_probes > 1 else STATUS_OK
+        )
         db.commit()
-        log.info("baseline captured for endpoint %s (%s)", endpoint.id, endpoint.name)
+        log.info("baseline capture started for endpoint %s (%s)", endpoint.id, endpoint.name)
+        return None
+
+    if baseline.samples < settings.baseline_probes:
+        # Learning phase: merge this probe into the baseline instead of
+        # diffing. Fields absent in some probes become optional; enum value
+        # samples accumulate. Drift detection arms once N probes are merged.
+        baseline.shape = merge_shapes([baseline.shape, shape])
+        baseline.samples += 1
+        done = baseline.samples >= settings.baseline_probes
+        endpoint.last_status = STATUS_OK if done else STATUS_LEARNING
+        db.commit()
+        log.info(
+            "baseline learning for endpoint %s (%s): %d/%d probes%s",
+            endpoint.id, endpoint.name, baseline.samples, settings.baseline_probes,
+            " — armed" if done else "",
+        )
         return None
 
     changes = diff_shapes(baseline.shape, shape)
@@ -146,6 +181,7 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
     event = DriftEvent(
         endpoint_id=endpoint.id,
         snapshot_id=snapshot.id,
+        baseline_snapshot_id=baseline.id,
         severity=overall_severity(changes),
         changes=changes,
     )

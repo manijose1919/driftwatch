@@ -10,6 +10,14 @@ Severity semantics (consumer's point of view):
 - breaking: existing client code will very likely fail
 - risky:    existing client code may fail depending on assumptions
 - benign:   purely additive / informational
+
+Core principle: a single observation that is CONSISTENT with the baseline
+contract is not drift. An optional field being absent, only one variant of a
+union type appearing, an array being empty, or a nullable field holding a
+value are all expected outcomes of sampling — reporting them would drown
+users in noise (especially with multi-probe learned baselines). Only
+violations (removals, type changes) and expansions (new types, new enum
+values, new nullability, new fields) are reported.
 """
 from .shape import is_closed_enum
 
@@ -37,8 +45,7 @@ def diff_shapes(old: dict | None, new: dict | None, path: str = "$") -> list[dic
                           "item shape observed for the first time (was empty)"))
         return changes
     if new is None:
-        changes.append(_c(path, "array_items_unknown", BENIGN,
-                          "array observed empty this probe; item shape not comparable"))
+        # Array empty this probe: consistent with the baseline, not drift.
         return changes
 
     _diff_nullability(old, new, path, changes)
@@ -56,8 +63,13 @@ def diff_shapes(old: dict | None, new: dict | None, path: str = "$") -> list[dic
         return changes
 
     if old_types != new_types:
-        changes.append(_classify_type_change(old_types, new_types, path))
-        return changes  # structures no longer comparable below this node
+        change = _classify_type_change(old_types, new_types, path)
+        if change is not None:
+            changes.append(change)
+        # Either way, stop here: a type change makes deeper structure
+        # incomparable, and a silent subset (baseline was a union) means the
+        # baseline node carries no structure to recurse into.
+        return changes
 
     # Same type(s) from here on.
     t = old["type"]
@@ -77,15 +89,15 @@ def _diff_objects(old: dict, new: dict, path: str, changes: list[dict]) -> None:
     for name, old_f in old_fields.items():
         fpath = f"{path}.{name}"
         if name not in new_fields:
+            if old_f.get("optional"):
+                continue  # absence of an optional field is within contract
             changes.append(_c(fpath, "field_removed", BREAKING, "field disappeared"))
             continue
         new_f = new_fields[name]
         if not old_f.get("optional") and new_f.get("optional"):
             changes.append(_c(fpath, "became_optional", RISKY,
                               "field no longer present on every item"))
-        elif old_f.get("optional") and not new_f.get("optional"):
-            changes.append(_c(fpath, "became_required", BENIGN,
-                              "field now present on every item"))
+        # optional -> present-everywhere is consistent with contract: silent
         changes.extend(diff_shapes(old_f, new_f, fpath))
 
     for name in new_fields:
@@ -117,21 +129,34 @@ def _diff_nullability(old: dict, new: dict, path: str, changes: list[dict]) -> N
         return  # handled by the always-null cases in diff_shapes
     if not old_nullable and new_nullable:
         changes.append(_c(path, "became_nullable", RISKY, "null observed where never seen before"))
-    elif old_nullable and not new_nullable:
-        changes.append(_c(path, "non_nullable", BENIGN, "no null observed this probe"))
+    # nullable baseline + no null this probe is consistent with contract: silent
 
 
-def _classify_type_change(old_types: set[str], new_types: set[str], path: str) -> dict:
+def _classify_type_change(old_types: set[str], new_types: set[str], path: str) -> dict | None:
+    """Classify a type-set difference; None means consistent (not drift)."""
     detail = f"{_fmt(old_types)} -> {_fmt(new_types)}"
     if old_types == {"integer"} and new_types == {"number"}:
         return _c(path, "type_widened", RISKY, "integer -> number (fractional values appeared)")
-    if old_types == {"number"} and new_types == {"integer"}:
-        return _c(path, "type_narrowed", BENIGN, "number -> integer (still numeric)")
+    if _is_consistent_subset(new_types, old_types):
+        return None  # only saw some of the baseline's variants this probe
     if new_types > old_types:
         return _c(path, "type_variant_added", RISKY, f"gained type variant(s): {detail}")
-    if new_types < old_types:
-        return _c(path, "type_narrowed", BENIGN, f"type set narrowed: {detail}")
     return _c(path, "type_changed", BREAKING, detail)
+
+
+def _is_consistent_subset(new_types: set[str], old_types: set[str]) -> bool:
+    """Is every observed type allowed by the baseline union?
+
+    JSON integers are valid numbers, so an observed "integer" is satisfied
+    by a baseline "number".
+    """
+    for t in new_types:
+        if t in old_types:
+            continue
+        if t == "integer" and "number" in old_types:
+            continue
+        return False
+    return True
 
 
 def _type_set(shape: dict) -> set[str]:

@@ -62,6 +62,9 @@ def accept_event(event_id: int, db: Session = Depends(get_db)):
     ):
         snap.is_baseline = False
     event.snapshot.is_baseline = True
+    # Re-enter the learning phase: the accepted shape came from one probe,
+    # so merge the next few probes to re-learn optional fields.
+    event.snapshot.samples = 1
     event.acknowledged = True
 
     # Close sibling open events: they were measured against the old baseline.
@@ -76,6 +79,21 @@ def accept_event(event_id: int, db: Session = Depends(get_db)):
     event.endpoint.last_status = STATUS_OK
     db.commit()
     return _to_out(event, event.endpoint.name)
+
+
+@router.get("/events/{event_id}/shapes")
+def event_shapes(event_id: int, db: Session = Depends(get_db)):
+    """Return the baseline shape and observed shape this event compared."""
+    event = db.get(DriftEvent, event_id)
+    if event is None:
+        raise HTTPException(404, "event not found")
+    observed = event.snapshot.shape if event.snapshot is not None else None
+    baseline = None
+    if event.baseline_snapshot_id is not None:
+        baseline_snap = db.get(Snapshot, event.baseline_snapshot_id)
+        if baseline_snap is not None:
+            baseline = baseline_snap.shape
+    return {"baseline": baseline, "observed": observed}
 
 
 @router.get("/stats", response_model=StatsOut)

@@ -17,6 +17,7 @@
     </div>
   </div>
   <div class="stats" id="stats"></div>
+  <button class="icon-btn" id="btn-settings" title="API token settings">⚙️</button>
 </header>
 
 <main>
@@ -85,10 +86,11 @@
     <label>Name <input name="name" required maxlength="200" placeholder="#api-alerts"></label>
     <div class="row">
       <label>Kind
-        <select name="kind">
+        <select name="kind" id="channel-kind">
           <option value="discord">Discord</option>
           <option value="slack">Slack</option>
           <option value="webhook">Generic webhook</option>
+          <option value="email">Email (needs SMTP env config)</option>
         </select>
       </label>
       <label>Alert on
@@ -99,8 +101,22 @@
         </select>
       </label>
     </div>
-    <label>Webhook URL <input name="webhook_url" required placeholder="https://discord.com/api/webhooks/…"></label>
+    <label id="channel-target-label">Webhook URL <input name="webhook_url" required placeholder="https://discord.com/api/webhooks/…"></label>
     <p class="form-error" id="channel-error"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- API token settings -->
+<dialog id="dlg-token">
+  <form method="dialog" id="form-token">
+    <h3>API token</h3>
+    <p class="card-sub">Only needed when the server sets <code>DRIFTWATCH_API_TOKEN</code>.
+       Stored in this browser only.</p>
+    <label>Token <input name="token" placeholder="leave empty to clear"></label>
     <div class="dlg-actions">
       <button type="button" class="btn" data-close>Cancel</button>
       <button type="submit" class="btn primary">Save</button>
