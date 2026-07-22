@@ -47,6 +47,9 @@ def schedule_endpoint(endpoint: Endpoint) -> None:
         next_run_time=datetime.now(timezone.utc) + _FIRST_RUN_DELAY,
         max_instances=1,
         coalesce=True,
+        # Spread probes so many endpoints on the same interval don't all fire
+        # in lockstep (which would spike outbound load and align every alert).
+        jitter=max(1, min(30, endpoint.interval_seconds // 10)),
     )
     log.info(
         "scheduled endpoint %s (%s) every %ss",

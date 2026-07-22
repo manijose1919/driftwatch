@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from . import scheduler
 from .config import settings
 from .database import init_db
-from .routes import channels, demo, drift, endpoints
+from .routes import channels, demo, drift, endpoints, health
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -34,10 +34,11 @@ app = FastAPI(
     title="DriftWatch",
     description="Self-hosted API contract drift sentinel: watches third-party "
                 "JSON APIs and alerts when their response *shape* changes.",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
+app.include_router(health.router)
 app.include_router(endpoints.router)
 app.include_router(drift.router)
 app.include_router(channels.router)

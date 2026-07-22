@@ -163,16 +163,19 @@ OpenAPI spec):
 - `GET /api/events/{id}/shapes` — baseline vs observed shape for an event
 - `POST /api/channels` · `POST /api/channels/{id}/test`
 - `GET /api/stats`
+- `GET /healthz` — unauthenticated liveness/readiness probe (200 healthy, 503 if the DB is unreachable); used by the Docker `HEALTHCHECK` and any uptime monitor
 
 ## Tests
 
 ```powershell
-.venv\Scripts\python -m pytest tests -q     # 57 tests
+.venv\Scripts\python -m pytest tests -q     # 60 tests
 ```
 
 Covers shape inference, the drift classifier's severity semantics, baseline
-learning, retry behavior, retention pruning, alert dispatch/filtering, and
-the full probe → drift → alert → accept lifecycle over the REST API.
+learning, retry behavior, retention pruning, alert dispatch/filtering, the
+`/healthz` probe, and the full probe → drift → alert → accept lifecycle over
+the REST API. Every push and PR runs this suite in GitHub Actions
+(`.github/workflows/ci.yml`).
 
 ## Project layout
 
@@ -196,8 +199,9 @@ app/
     drift.py       drift feed, ack, accept-baseline, shapes, stats
     channels.py    alert channel CRUD + delivery test
     demo.py        built-in mutable demo API
+    health.py      unauthenticated /healthz liveness/readiness probe
 static/            zero-build dashboard (vanilla JS SPA)
-tests/             pytest suite (57 tests)
+tests/             pytest suite (60 tests)
 ```
 
 ## Design decisions
