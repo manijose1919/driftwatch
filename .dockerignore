@@ -1,0 +1,17 @@
+# Keep the Docker build context small and reproducible.
+.venv/
+__pycache__/
+*.pyc
+.git/
+.github/
+tests/
+docs/
+*.db
+.pytest_cache/
+.dockerignore
+Dockerfile
+*.md
+!README.md
+install-autostart.ps1
+uninstall-autostart.ps1
+start.ps1

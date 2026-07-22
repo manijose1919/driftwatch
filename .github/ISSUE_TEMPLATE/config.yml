@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or usage help
+    url: https://github.com/manijose1919/driftwatch#readme
+    about: Check the README (quick start, configuration, REST API) before opening an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/manijose1919/driftwatch/security/policy
+    about: Please report vulnerabilities privately — do not open a public issue.

@@ -34,7 +34,7 @@ app = FastAPI(
     title="DriftWatch",
     description="Self-hosted API contract drift sentinel: watches third-party "
                 "JSON APIs and alerts when their response *shape* changes.",
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
 )
 

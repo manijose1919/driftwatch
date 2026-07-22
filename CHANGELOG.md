@@ -6,6 +6,8 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-22
+
 ### Added
 - **Health probe** — unauthenticated `GET /healthz` liveness/readiness endpoint
   (200 healthy, 503 when the database is unreachable), reporting version and
@@ -41,6 +43,7 @@ to follow [Semantic Versioning](https://semver.org/).
   with breaking/risky/benign classification, drift feed, accept-as-baseline,
   alert channels, a zero-build dashboard, and a REST API.
 
-[Unreleased]: https://github.com/manijose1919/driftwatch/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/manijose1919/driftwatch/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/manijose1919/driftwatch/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/manijose1919/driftwatch/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/manijose1919/driftwatch/releases/tag/v1.0.0
