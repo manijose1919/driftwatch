@@ -1,8 +1,26 @@
 # 🛰️ DriftWatch
 
-**Self-hosted API contract drift sentinel.** DriftWatch watches the third-party
-JSON APIs your application depends on and alerts you the moment their response
-*shape* changes — before your production code finds out the hard way.
+> **Self-hosted API contract drift sentinel** — watch the third-party JSON APIs
+> your app depends on and get alerted the moment their response *shape* changes,
+> before your production code finds out the hard way.
+
+[![CI](https://github.com/manijose1919/driftwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/manijose1919/driftwatch/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
+[![Built with FastAPI](https://img.shields.io/badge/built%20with-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
+
+DriftWatch probes each API you register on a schedule, reduces every response to
+a structure-only **type-shape**, and alerts on Discord/Slack/email/webhook when
+that shape drifts — classifying each change as 🔴 breaking, 🟡 risky, or 🟢 benign
+from the *consumer's* point of view. Zero-cost, one process, no Node toolchain.
+
+![DriftWatch dashboard showing a breaking API drift event with exact JSON paths, a latency sparkline, and a per-probe status timeline](docs/dashboard.jpg)
+
+## Contents
+
+- [The problem it solves](#the-problem-it-solves) · [Who it's for](#who-its-for) · [How it works](#how-it-works)
+- [Quick start](#quick-start) · [Alert channels](#alert-channels) · [Configuration](#configuration-environment-variables)
+- [REST API](#rest-api) · [Tests](#tests) · [Project layout](#project-layout) · [Design decisions](#design-decisions)
 
 ## The problem it solves
 
@@ -215,3 +233,14 @@ tests/             pytest suite (67 tests)
   script, not a compose stack with credentials.
 - **Zero-build frontend** — the dashboard is vanilla JS served by the same
   FastAPI process. No Node toolchain, nothing to compile, one deployable.
+
+## Contributing
+
+Contributions are welcome. The whole app is one FastAPI process with a SQLite
+database and a vanilla-JS dashboard, so getting started is quick — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, test command, and the few
+conventions worth knowing. Every push and PR runs the test suite in CI.
+
+## License
+
+Released under the [MIT License](LICENSE).
