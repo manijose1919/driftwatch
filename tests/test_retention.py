@@ -77,7 +77,7 @@ def test_prune_disabled(client, monkeypatch):
         s = snap(db, ep, OLD)
         event(db, ep, s, baseline, OLD, acknowledged=True)
         db.commit()
-        assert prune_old_data() == {"events": 0, "snapshots": 0}
+        assert prune_old_data() == {"events": 0, "snapshots": 0, "probe_results": 0}
         assert db.query(DriftEvent).count() == 1
     finally:
         db.close()

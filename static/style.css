@@ -102,6 +102,15 @@ h2 { margin: 0; font-size: 15.5px; }
 .card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .spacer { flex: 1; }
 
+/* latency sparkline + status timeline */
+.card-trend { display: flex; align-items: center; gap: 12px; margin-top: 9px; flex-wrap: wrap; }
+.status-strip { display: flex; gap: 2px; align-items: center; }
+.status-strip .sd {
+  width: 5px; height: 15px; border-radius: 1.5px; display: inline-block;
+}
+.spark { height: 26px; width: 150px; display: block; }
+.trend-label { color: var(--muted); font-size: 11.5px; }
+
 .badge {
   font-size: 11px;
   font-weight: 700;

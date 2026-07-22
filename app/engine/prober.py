@@ -22,6 +22,7 @@ from ..models import (
     STATUS_OK,
     DriftEvent,
     Endpoint,
+    ProbeResult,
     Snapshot,
     utcnow,
 )
@@ -33,6 +34,24 @@ log = logging.getLogger("driftwatch.prober")
 
 class ProbeError(Exception):
     pass
+
+
+def _record_probe(
+    db: Session, endpoint: Endpoint,
+    status_code: int | None = None, response_ms: float | None = None,
+) -> None:
+    """Append a lightweight metrics row for this probe (latency + outcome).
+
+    Called at every terminal branch of `_probe` so the time series has one row
+    per probe, not just per baseline/drift snapshot. Uses the status the branch
+    just assigned to the endpoint.
+    """
+    db.add(ProbeResult(
+        endpoint_id=endpoint.id,
+        status=endpoint.last_status,
+        status_code=status_code,
+        response_ms=response_ms,
+    ))
 
 
 async def _request(endpoint: Endpoint) -> tuple[object, int, float]:
@@ -108,6 +127,7 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
                 }],
             )
             db.add(event)
+        _record_probe(db, endpoint)
         db.commit()
         log.warning("probe error for endpoint %s (%s): %s", endpoint.id, endpoint.name, exc)
         return event
@@ -130,6 +150,7 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
         endpoint.last_status = (
             STATUS_LEARNING if settings.baseline_probes > 1 else STATUS_OK
         )
+        _record_probe(db, endpoint, status_code, elapsed_ms)
         db.commit()
         log.info("baseline capture started for endpoint %s (%s)", endpoint.id, endpoint.name)
         return None
@@ -142,6 +163,7 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
         baseline.samples += 1
         done = baseline.samples >= settings.baseline_probes
         endpoint.last_status = STATUS_OK if done else STATUS_LEARNING
+        _record_probe(db, endpoint, status_code, elapsed_ms)
         db.commit()
         log.info(
             "baseline learning for endpoint %s (%s): %d/%d probes%s",
@@ -153,6 +175,7 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
     changes = diff_shapes(baseline.shape, shape)
     if not changes:
         endpoint.last_status = STATUS_OK
+        _record_probe(db, endpoint, status_code, elapsed_ms)
         db.commit()
         return None
 
@@ -169,6 +192,7 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
         # Structural comparison (not dict equality): free-form string value
         # samples differ between probes without being drift.
         if not diff_shapes(latest_open.snapshot.shape, shape):
+            _record_probe(db, endpoint, status_code, elapsed_ms)
             db.commit()
             return None
 
@@ -186,6 +210,7 @@ async def _probe(db: Session, endpoint: Endpoint) -> DriftEvent | None:
         changes=changes,
     )
     db.add(event)
+    _record_probe(db, endpoint, status_code, elapsed_ms)
     db.commit()
     log.info(
         "drift detected for endpoint %s (%s): %s, %d change(s)",

@@ -159,6 +159,7 @@ OpenAPI spec):
 
 - `POST /api/endpoints` · `GET /api/endpoints` · `PUT/DELETE /api/endpoints/{id}`
 - `POST /api/endpoints/{id}/probe` — probe now
+- `GET /api/endpoints/{id}/history` — per-probe latency + status time series (powers the dashboard sparkline)
 - `GET /api/events` · `POST /api/events/{id}/ack` · `POST /api/events/{id}/accept`
 - `GET /api/events/{id}/shapes` — baseline vs observed shape for an event
 - `POST /api/channels` · `POST /api/channels/{id}/test`
@@ -168,13 +169,13 @@ OpenAPI spec):
 ## Tests
 
 ```powershell
-.venv\Scripts\python -m pytest tests -q     # 60 tests
+.venv\Scripts\python -m pytest tests -q     # 67 tests
 ```
 
 Covers shape inference, the drift classifier's severity semantics, baseline
 learning, retry behavior, retention pruning, alert dispatch/filtering, the
-`/healthz` probe, and the full probe → drift → alert → accept lifecycle over
-the REST API. Every push and PR runs this suite in GitHub Actions
+`/healthz` probe, per-probe metrics + `/history`, and the full
+probe → drift → alert → accept lifecycle over the REST API. Every push and PR runs this suite in GitHub Actions
 (`.github/workflows/ci.yml`).
 
 ## Project layout
@@ -184,7 +185,7 @@ app/
   main.py          FastAPI app: routers, static dashboard, lifespan
   config.py        env-based settings
   database.py      SQLAlchemy engine/session + lightweight SQLite migrations
-  models.py        Endpoint, Snapshot, DriftEvent, AlertChannel
+  models.py        Endpoint, Snapshot, DriftEvent, ProbeResult, AlertChannel
   schemas.py       Pydantic request/response models
   auth.py          optional bearer-token guard
   scheduler.py     APScheduler: one interval job per endpoint + daily pruning
@@ -201,7 +202,7 @@ app/
     demo.py        built-in mutable demo API
     health.py      unauthenticated /healthz liveness/readiness probe
 static/            zero-build dashboard (vanilla JS SPA)
-tests/             pytest suite (60 tests)
+tests/             pytest suite (67 tests)
 ```
 
 ## Design decisions

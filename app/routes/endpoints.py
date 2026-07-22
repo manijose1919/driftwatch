@@ -8,8 +8,14 @@ from ..auth import require_token
 from ..config import settings
 from ..database import get_db
 from ..engine.prober import run_probe
-from ..models import DriftEvent, Endpoint, Snapshot
-from ..schemas import EndpointCreate, EndpointOut, EndpointUpdate, SnapshotOut
+from ..models import DriftEvent, Endpoint, ProbeResult, Snapshot
+from ..schemas import (
+    EndpointCreate,
+    EndpointOut,
+    EndpointUpdate,
+    ProbeResultOut,
+    SnapshotOut,
+)
 from .. import scheduler
 
 router = APIRouter(prefix="/api/endpoints", tags=["endpoints"], dependencies=[Depends(require_token)])
@@ -121,3 +127,21 @@ def list_snapshots(endpoint_id: int, db: Session = Depends(get_db)):
         .order_by(Snapshot.id.desc())
         .limit(50)
     ).all()
+
+
+@router.get("/{endpoint_id}/history", response_model=list[ProbeResultOut])
+def probe_history(endpoint_id: int, limit: int = 100, db: Session = Depends(get_db)):
+    """Recent probe metrics (latency + status) in chronological order.
+
+    Powers the dashboard's latency sparkline and status timeline. Returned
+    oldest-first so the frontend can plot it left-to-right without reversing.
+    """
+    if db.get(Endpoint, endpoint_id) is None:
+        raise HTTPException(404, "endpoint not found")
+    rows = db.scalars(
+        select(ProbeResult)
+        .where(ProbeResult.endpoint_id == endpoint_id)
+        .order_by(ProbeResult.id.desc())
+        .limit(min(limit, 500))
+    ).all()
+    return list(reversed(rows))

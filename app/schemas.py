@@ -99,6 +99,16 @@ class SnapshotOut(BaseModel):
     created_at: datetime
 
 
+class ProbeResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    status: str
+    status_code: int | None
+    response_ms: float | None
+    created_at: datetime
+
+
 class ChangeOut(BaseModel):
     path: str
     kind: str

@@ -49,6 +49,9 @@ class Endpoint(Base):
     events: Mapped[list["DriftEvent"]] = relationship(
         back_populates="endpoint", cascade="all, delete-orphan"
     )
+    probe_results: Mapped[list["ProbeResult"]] = relationship(
+        back_populates="endpoint", cascade="all, delete-orphan"
+    )
 
 
 class Snapshot(Base):
@@ -86,6 +89,28 @@ class DriftEvent(Base):
 
     endpoint: Mapped[Endpoint] = relationship(back_populates="events")
     snapshot: Mapped[Snapshot | None] = relationship(foreign_keys=[snapshot_id])
+
+
+class ProbeResult(Base):
+    """One lightweight metrics row per probe (latency + outcome status).
+
+    Unlike Snapshot — which stores a full JSON type-shape only for baselines
+    and drift events — a ProbeResult is written on *every* probe. It carries no
+    shape blob, just a few numbers, so it's cheap to keep a per-endpoint time
+    series for latency sparklines and status timelines. Retention-pruned.
+    """
+    __tablename__ = "probe_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    endpoint_id: Mapped[int] = mapped_column(ForeignKey("endpoints.id"), index=True)
+    status: Mapped[str] = mapped_column(String(20))  # learning | ok | drift | error
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+
+    endpoint: Mapped[Endpoint] = relationship(back_populates="probe_results")
 
 
 class AlertChannel(Base):

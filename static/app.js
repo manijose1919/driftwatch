@@ -1,7 +1,7 @@
 /* DriftWatch dashboard — zero-build vanilla JS SPA. */
 
 const $ = (sel) => document.querySelector(sel);
-const state = { endpoints: [], events: [], channels: [], stats: null, editingId: null };
+const state = { endpoints: [], events: [], channels: [], stats: null, editingId: null, histories: {} };
 const shapeViews = new Map(); // eventId -> {baseline, observed}; presence = expanded
 
 /* ---------- API helper ---------- */
@@ -61,6 +61,57 @@ function statusBadge(ep) {
   return `<span class="badge ${esc(ep.last_status)}">${esc(ep.last_status)}</span>`;
 }
 
+/* ---------- observability: latency sparkline + status timeline ---------- */
+
+const STATUS_COLOR = {
+  ok: "var(--benign)", drift: "var(--risky)", error: "var(--error)",
+  learning: "#79b8ff", pending: "var(--accent)",
+};
+
+// Inline SVG sparkline of probe latency (ms). Error probes carry no latency,
+// so they're skipped here — the status strip below shows them instead.
+function sparkline(rows) {
+  const vals = rows.map((r) => r.response_ms).filter((v) => v != null);
+  if (vals.length < 2) return "";
+  const w = 150, h = 26, pad = 3;
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || 1;
+  const step = (w - pad * 2) / (vals.length - 1);
+  const points = vals.map((v, i) => {
+    const x = pad + i * step;
+    const y = h - pad - ((v - min) / span) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"
+    role="img" aria-label="latency trend, most recent ${vals.length} probes">
+    <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.5"
+      stroke-linejoin="round" stroke-linecap="round" /></svg>`;
+}
+
+// One coloured tick per probe, oldest -> newest, coloured by outcome status.
+function statusStrip(rows) {
+  return `<div class="status-strip">` + rows.map((r) => {
+    const color = STATUS_COLOR[r.status] || "var(--muted)";
+    const ms = r.response_ms != null ? ` · ${r.response_ms.toFixed(0)}ms` : "";
+    return `<i class="sd" style="background:${color}" title="${esc(r.status)}${ms} · ${relTime(r.created_at)}"></i>`;
+  }).join("") + `</div>`;
+}
+
+function renderTrend(ep) {
+  const rows = state.histories[ep.id] || [];
+  if (!rows.length) return "";
+  const vals = rows.map((r) => r.response_ms).filter((v) => v != null);
+  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const label = avg != null
+    ? `avg ${avg.toFixed(0)} ms · ${rows.length} probes`
+    : `${rows.length} probes`;
+  return `<div class="card-trend">
+    ${statusStrip(rows)}
+    ${sparkline(rows)}
+    <span class="trend-label">${label}</span>
+  </div>`;
+}
+
 function renderEndpoints() {
   const box = $("#endpoints-list");
   if (!state.endpoints.length) {
@@ -84,6 +135,7 @@ function renderEndpoints() {
         ${ep.last_response_ms != null ? `<span>${ep.last_response_ms.toFixed(0)} ms</span>` : ""}
         ${ep.last_error ? `<span style="color:var(--error)">${esc(ep.last_error)}</span>` : ""}
       </div>
+      ${renderTrend(ep)}
       <div class="card-actions">
         <button class="btn small" data-act="edit">Edit</button>
         <button class="btn small" data-act="toggle">${ep.is_active ? "Pause" : "Resume"}</button>
@@ -165,7 +217,11 @@ async function loadAll() {
     const [stats, endpoints, events, channels] = await Promise.all([
       api("/api/stats"), api("/api/endpoints"), api("/api/events?limit=100"), api("/api/channels"),
     ]);
-    Object.assign(state, { stats, endpoints, events, channels });
+    // Latency/status time series, one small request per endpoint (parallel).
+    const histEntries = await Promise.all(endpoints.map((ep) =>
+      api(`/api/endpoints/${ep.id}/history?limit=40`)
+        .then((rows) => [ep.id, rows]).catch(() => [ep.id, []])));
+    Object.assign(state, { stats, endpoints, events, channels, histories: Object.fromEntries(histEntries) });
     renderStats(); renderEndpoints(); renderEvents(); renderChannels();
   } catch (err) {
     if (err.message !== "unauthorized") toast(`Load failed: ${err.message}`, true);
