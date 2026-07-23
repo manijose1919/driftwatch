@@ -1,7 +1,7 @@
 """Per-probe metrics: ProbeResult recording, the /history route, and pruning."""
 from datetime import timedelta
 
-from app.models import Endpoint, ProbeResult, utcnow
+from app.models import ProbeResult, utcnow
 
 
 def _add_endpoint(client, **over):

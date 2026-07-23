@@ -8,12 +8,15 @@ step. That keeps the contributor loop short.
 
 ```bash
 python -m venv .venv
-.venv/Scripts/pip install -r requirements.txt   # Windows
-# .venv/bin/pip install -r requirements.txt      # macOS/Linux
+.venv/Scripts/pip install -r requirements-dev.txt   # Windows (runtime + test/lint tools)
+# .venv/bin/pip install -r requirements-dev.txt       # macOS/Linux
 
 # Run the server (any free port)
 .venv/Scripts/python -m uvicorn app.main:app --reload --port 8420
 ```
+
+Runtime dependencies live in `requirements.txt` (pinned; this is all the Docker
+image installs); `requirements-dev.txt` adds the test and lint tooling on top.
 
 Open `http://127.0.0.1:8420/` for the dashboard and `/docs` for the OpenAPI UI.
 There's a built-in mutable demo API at `/demo/products` for exercising drift
@@ -30,6 +33,16 @@ The suite is fast (a couple of seconds) and network-free — the prober's HTTP
 call is monkeypatched with canned payloads (see `tests/conftest.py`). Please add
 or update tests for any behavior change; CI runs this same suite on every push
 and pull request.
+
+## Linting
+
+```bash
+.venv/Scripts/ruff check .
+```
+
+CI runs `ruff check` (pyflakes + pycodestyle errors) on every push and PR.
+Formatting is intentionally *not* auto-enforced — match the style of the code
+around your change. Ruff config lives in `pyproject.toml`.
 
 ## Conventions
 

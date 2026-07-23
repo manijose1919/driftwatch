@@ -1,0 +1,18 @@
+# DriftWatch — tooling configuration.
+# DriftWatch runs as an application (see requirements.txt / requirements-dev.txt),
+# not a distributable package, so no [build-system] / [project] table is needed.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Ruff's default rule set: pyflakes (F) + a subset of pycodestyle errors (E).
+# This catches real defects — unused imports, undefined names, shadowing — without
+# enforcing cosmetic line-length or reformatting the codebase's deliberate layout.
+# `ruff format` is intentionally NOT run in CI for the same reason.
+
+[tool.ruff.lint.per-file-ignores]
+# conftest.py must set environment variables (DB path, scheduler off) *before*
+# importing any app module, so its imports legitimately follow executable code.
+"tests/conftest.py" = ["E402"]

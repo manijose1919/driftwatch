@@ -1,0 +1,6 @@
+# Development and test dependencies (also installs the runtime deps above).
+# Used by CI and for local development; the Docker image installs only
+# requirements.txt so test tooling never ships to production.
+-r requirements.txt
+pytest==9.1.1
+ruff==0.15.22

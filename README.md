@@ -187,7 +187,8 @@ OpenAPI spec):
 ## Tests
 
 ```powershell
-.venv\Scripts\python -m pytest tests -q     # 67 tests
+.venv\Scripts\pip install -r requirements-dev.txt   # runtime + test/lint tools
+.venv\Scripts\python -m pytest tests -q             # 67 tests
 ```
 
 Covers shape inference, the drift classifier's severity semantics, baseline
