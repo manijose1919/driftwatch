@@ -97,9 +97,17 @@ learning the same way.
 - **Retry with backoff** — network errors and 5xx are retried
   (`DRIFTWATCH_PROBE_RETRIES`, default 2) before an endpoint is marked
   erroring.
-- **Retention pruning** — acknowledged events and orphaned snapshots older
-  than `DRIFTWATCH_RETENTION_DAYS` (default 30) are pruned daily; open drift
-  is never pruned.
+- **Retention pruning** — acknowledged events, orphaned snapshots, and probe
+  metrics older than `DRIFTWATCH_RETENTION_DAYS` (default 30) are pruned daily;
+  open drift is never pruned.
+
+### Observability
+
+Every probe records a lightweight metrics row (latency, outcome status, HTTP
+code), surfaced per endpoint as a **latency sparkline** and a **status
+timeline** on the dashboard and via `GET /api/endpoints/{id}/history`. A
+`GET /healthz` liveness/readiness probe — wired to the Docker `HEALTHCHECK` —
+reports process and database health for uptime monitors.
 
 ## Quick start
 
@@ -163,7 +171,7 @@ Add channels in the dashboard; each has its own minimum severity threshold.
 | `DRIFTWATCH_PROBE_TIMEOUT` | `15` | per-probe HTTP timeout (seconds) |
 | `DRIFTWATCH_PROBE_RETRIES` | `2` | extra attempts on network error / 5xx |
 | `DRIFTWATCH_PROBE_BACKOFF` | `0.5` | seconds between retries (linear) |
-| `DRIFTWATCH_RETENTION_DAYS` | `30` | prune acknowledged events/snapshots after N days (0 = keep forever) |
+| `DRIFTWATCH_RETENTION_DAYS` | `30` | prune acknowledged events, snapshots, and probe metrics after N days (0 = keep forever) |
 | `DRIFTWATCH_SMTP_HOST` | *(empty = email off)* | SMTP server for email channels |
 | `DRIFTWATCH_SMTP_PORT` | `587` | SMTP port |
 | `DRIFTWATCH_SMTP_USER` / `DRIFTWATCH_SMTP_PASSWORD` | *(empty)* | SMTP login (optional) |
@@ -194,8 +202,10 @@ OpenAPI spec):
 Covers shape inference, the drift classifier's severity semantics, baseline
 learning, retry behavior, retention pruning, alert dispatch/filtering, the
 `/healthz` probe, per-probe metrics + `/history`, and the full
-probe → drift → alert → accept lifecycle over the REST API. Every push and PR runs this suite in GitHub Actions
-(`.github/workflows/ci.yml`).
+probe → drift → alert → accept lifecycle over the REST API.
+
+Every push and pull request runs the test suite and `ruff` lint in GitHub
+Actions (`.github/workflows/ci.yml`).
 
 ## Project layout
 
@@ -215,7 +225,7 @@ app/
     differ.py      shape diff + severity classifier
     prober.py      probe executor (fetch w/ retries, learn, diff, record)
   routes/
-    endpoints.py   endpoint CRUD + probe-now + snapshots
+    endpoints.py   endpoint CRUD + probe-now + snapshots + probe history
     drift.py       drift feed, ack, accept-baseline, shapes, stats
     channels.py    alert channel CRUD + delivery test
     demo.py        built-in mutable demo API
