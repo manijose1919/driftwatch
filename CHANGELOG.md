@@ -6,6 +6,14 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Ruff linting in CI (a parallel `lint` job) and `pyproject.toml` config.
+
+### Changed
+- Runtime dependencies are now pinned to exact versions for reproducible
+  builds; test/lint tooling moved to `requirements-dev.txt` (keeping the Docker
+  image lean).
+
 ## [1.2.0] - 2026-07-22
 
 ### Added
