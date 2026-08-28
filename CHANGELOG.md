@@ -6,6 +6,13 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- `POST /demo/scenario/{n}` now requires the API token when one is configured,
+  so a shared instance cannot have its demo mutated anonymously. `GET
+  /demo/products` stays public (it is the probe target).
+- Startup logs a warning when `DRIFTWATCH_API_TOKEN` is unset.
+- `.env` files are gitignored.
+
 ### Added
 - Ruff linting in CI (a parallel `lint` job) and `pyproject.toml` config.
 

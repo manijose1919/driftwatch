@@ -21,9 +21,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
+log = logging.getLogger("driftwatch")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    if not settings.api_token:
+        log.warning(
+            "DRIFTWATCH_API_TOKEN is unset — /api routes (and demo scenario "
+            "flips) are open. Fine on a trusted LAN; set a token before "
+            "exposing this process beyond localhost."
+        )
     if settings.scheduler_enabled:
         scheduler.start()
     yield

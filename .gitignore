@@ -4,3 +4,6 @@ __pycache__/
 driftwatch.db
 .dw_port.txt
 .pytest_cache/
+.env
+.env.*
+!.env.example

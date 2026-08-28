@@ -292,3 +292,13 @@ def test_api_token_auth(client, monkeypatch):
     assert client.get(
         "/api/endpoints", headers={"Authorization": "Bearer sekrit"}
     ).status_code == 200
+
+    # Probe target stays public so DriftWatch can fetch it without a token.
+    assert client.get("/demo/products").status_code == 200
+    # Scenario flips are writes — they follow the API token.
+    assert client.post("/demo/scenario/1").status_code == 401
+    assert client.post(
+        "/demo/scenario/1", headers={"Authorization": "Bearer sekrit"}
+    ).status_code == 200
+    assert client.get("/demo/scenario").json()["scenario"] == 1
+    client.post("/demo/scenario/0", headers={"Authorization": "Bearer sekrit"})
