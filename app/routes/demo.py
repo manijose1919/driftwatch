@@ -10,7 +10,9 @@ scenarios with POST /demo/scenario/{n} and probe again to watch drift appear:
 """
 import random
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from ..auth import require_token
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
@@ -47,7 +49,7 @@ def products():
     return payload
 
 
-@router.post("/scenario/{n}")
+@router.post("/scenario/{n}", dependencies=[Depends(require_token)])
 def set_scenario(n: int):
     global _scenario
     if n not in (0, 1, 2, 3):

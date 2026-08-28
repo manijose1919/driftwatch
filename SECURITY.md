@@ -29,7 +29,9 @@ widely, please note:
 
 - **Set `DRIFTWATCH_API_TOKEN`.** The `/api/*` routes are unauthenticated by
   default (self-hosted LAN assumption); a token enables Bearer-auth. `/healthz`
-  is intentionally unauthenticated and exposes no sensitive data.
+  and `GET /demo/products` are intentionally unauthenticated. When a token is
+  set, `POST /demo/scenario/{n}` requires it as well so a shared instance
+  cannot have its demo mutated by an unauthenticated caller.
 - **DriftWatch fetches URLs you register.** Only add endpoints you trust; probe
   requests originate from the host running DriftWatch, so treat registration as
   a potential SSRF vector on internal networks.
